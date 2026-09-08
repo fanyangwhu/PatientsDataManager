@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}记录 #{{ patient.id }} 详情{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <h2>记录 #{{ patient.id }}
+      <span class="badge badge-blue">{{ '由 %s 创建' % (patient.created_by.full_name or patient.created_by.username) if patient.created_by else '—' }}</span>
+      <span class="badge badge-gray">创建 {{ patient.created_at.strftime('%Y-%m-%d %H:%M') if patient.created_at else '' }}</span>
+      <span class="badge badge-gray">最后更新 {{ patient.updated_at.strftime('%Y-%m-%d %H:%M') if patient.updated_at else '' }}</span>
+    </h2>
+    <div class="btn-row">
+      <a class="btn" href="{{ url_for('records.list_view') }}">返回列表</a>
+      {% if can_edit %}
+      <a class="btn btn-primary" href="{{ url_for('records.edit', pid=patient.id) }}">编辑</a>
+      <form method="post" action="{{ url_for('records.delete', pid=patient.id) }}" class="inline-form"
+            onsubmit="return confirmDelete({{ patient.id }})">
+        <input type="hidden" name="confirm" value="yes">
+        <button class="btn btn-danger" type="submit">删除</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="detail-list">
+    {% for it in items %}
+    <div class="detail-item">
+      <div class="k">{{ it.label }}{% if it.inactive %} <span class="badge badge-gray">已停用字段</span>{% endif %}</div>
+      <div class="v">{{ it.value if it.value else '<span class="muted">—</span>'|safe }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

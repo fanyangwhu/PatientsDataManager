@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}Excel 导入{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <h2>Excel / CSV 导入</h2>
+    <a class="btn" href="{{ url_for('records.list_view') }}">返回列表</a>
+  </div>
+
+  <div class="step"><div class="n">1</div><div><div class="tx">下载模板</div>
+    <div class="ds">模板的第一行是字段名，与你配置的字段一一对应。</div></div></div>
+  <div style="margin:-8px 0 18px 34px">
+    <a class="btn btn-primary" href="{{ url_for('records.template') }}">下载导入模板（含字段说明）</a>
+  </div>
+
+  <div class="step"><div class="n">2</div><div><div class="tx">填写数据</div>
+    <div class="ds">
+      日期写成 <code>2025-03-01</code>；是否填「是/否」；多选用分号分隔（<code>高血压;糖尿病</code>）；
+      单选只能填预设选项之一。不要修改模板第一行的字段名。
+    </div></div></div>
+
+  <div class="step"><div class="n">3</div><div><div class="tx">上传文件</div>
+    <div class="ds">支持 .xlsx / .xlsm / .csv，最大 32MB。上传后会先预览并校验，确认无误再写入。</div></div></div>
+
+  <form method="post" enctype="multipart/form-data" style="margin-left:34px">
+    <div class="btn-row">
+      <input type="file" name="file" accept=".xlsx,.xlsm,.csv" required>
+      <button class="btn btn-primary" type="submit">上传并预览</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h3>导入规则说明</h3>
+  <ul class="small muted" style="padding-left:20px;margin:0">
+    <li>系统按「字段名」自动匹配列；若你的表格列名不同，可在下一步手动指定对应关系。</li>
+    <li>必填项为空、数字/日期格式错误、单选值不在选项内，都会在预览页逐行标出，不会被错误写入。</li>
+    <li>标记为「值唯一」的字段（如住院号）重复时会报错；选择「更新已有记录」模式则按该字段覆盖更新。</li>
+    <li>导入的记录会记录创建人与时间，导出文件也保留「创建人」「创建时间」列，便于追溯。</li>
+  </ul>
+</div>
+{% endblock %}

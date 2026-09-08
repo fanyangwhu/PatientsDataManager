@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block title %}导入预览{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <h2>第 2 步：确认列对应关系</h2>
+    <a class="btn" href="{{ url_for('records.import_view') }}">重新上传</a>
+  </div>
+  <p class="small muted" style="margin-top:0">
+    文件：<strong>{{ filename }}</strong>　共 <strong>{{ total }}</strong> 行数据（不含表头）。
+    请核对每一列对应的字段，未使用的列请选择「— 不导入 —」。
+  </p>
+
+  {% if errors %}
+  <div class="err-list" style="margin-bottom:14px">
+    <div style="font-weight:600;color:#a01c1c;margin-bottom:6px">校验发现 {{ errors|length }} 行有问题：</div>
+    {% for e in errors[:50] %}
+      <div>第 {{ e.line }} 行：{{ e.messages|join('；') }}</div>
+    {% endfor %}
+    {% if errors|length > 50 %}<div>…另有 {{ errors|length - 50 }} 行未显示</div>{% endif %}
+  </div>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('records.import_run') }}">
+    <div class="table-wrap tall" style="margin-bottom:16px">
+      <table class="grid mapping-table">
+        <thead>
+          <tr>
+            <th class="nowrap">Excel 列名</th>
+            <th class="nowrap">对应字段</th>
+            <th>样例数据（前 5 行）</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for h in headers %}
+          {% set ci = loop.index0 %}
+          <tr>
+            <td class="nowrap"><strong>{{ h }}</strong></td>
+            <td class="nowrap">
+              <select name="col_{{ loop.index0 }}">
+                <option value="">— 不导入 —</option>
+                {% for f in fields %}
+                <option value="{{ f.id }}" {% if mapping.get(ci) == f.id %}selected{% endif %}>
+                  {{ f.label }}{% if f.required %}（必填）{% endif %}
+                </option>
+                {% endfor %}
+              </select>
+            </td>
+            <td class="small muted">
+              {% for r in rows %}{{ r[ci] if ci < r|length else '' }}{% if not loop.last %} ｜ {% endif %}{% endfor %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;margin-bottom:16px">
+      <div>
+        <label class="small" style="font-weight:600">导入模式</label><br>
+        <label class="small"><input type="radio" name="mode" value="create" checked> 全部作为新记录导入</label><br>
+        <label class="small"><input type="radio" name="mode" value="upsert"> 按唯一字段匹配：已存在则更新，不存在则新增</label>
+        <div class="hint muted">（例如按「住院号」匹配，反复导入同一份表不会重复）</div>
+      </div>
+      <div>
+        <label class="small" style="font-weight:600">错误处理</label><br>
+        <label class="small"><input type="checkbox" name="skip_errors"> 跳过校验不通过的行，只导入正确数据</label>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" type="submit">确认导入</button>
+      <a class="btn" href="{{ url_for('records.import_view') }}">取消</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

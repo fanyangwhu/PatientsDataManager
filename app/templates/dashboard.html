@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}数据总览 · 患者临床信息管理系统{% endblock %}
+{% block content %}
+
+<div class="stats">
+  <div class="stat"><div class="n">{{ stats.patients }}</div><div class="t">患者记录总数</div></div>
+  <div class="stat"><div class="n">{{ stats.fields }}</div><div class="t">自定义字段数</div></div>
+  <div class="stat"><div class="n">{{ stats.users }}</div><div class="t">系统用户数</div></div>
+  <div class="stat"><div class="n">{{ stats.logs }}</div><div class="t">操作留痕条数</div></div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h2>最近更新的记录</h2>
+    <div class="btn-row">
+      <a class="btn btn-primary" href="{{ url_for('records.create') }}">+ 新建患者记录</a>
+      <a class="btn" href="{{ url_for('records.import_view') }}">Excel 导入</a>
+      <a class="btn" href="{{ url_for('records.export', scope='all') }}">导出全部 Excel</a>
+      {% if current_user.is_admin() %}
+      <a class="btn" href="{{ url_for('fields.index') }}">字段管理</a>
+      <a class="btn" href="{{ url_for('backup_db') }}">备份数据库</a>
+      {% endif %}
+    </div>
+  </div>
+  {% if rows %}
+  <div class="table-wrap">
+    <table class="grid">
+      <thead>
+        <tr>
+          <th class="nowrap">{% if has_primary %}患者{% else %}记录{% endif %}</th>
+          {% for f in list_fields %}<th>{{ f.label }}</th>{% endfor %}
+          <th class="nowrap">更新时间</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td class="nowrap"><a class="patient-title" href="{{ url_for('records.detail', pid=r.id) }}">{{ r.title }}</a></td>
+          {% for c in r.cells %}<td>{{ c or '—' }}</td>{% endfor %}
+          <td class="nowrap muted">{{ r.updated }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty">还没有数据。点击「新建患者记录」或「Excel 导入」开始录入。</div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>共享访问</h3>
+  <p class="small" style="margin-top:0">
+    同一科室的其他电脑，在浏览器里打开
+    <code>http://{{ request.host }}</code>
+    即可共用这套系统（需在同一局域网，且本程序保持运行）。
+  </p>
+</div>
+
+<div class="card">
+  <h3>使用要点</h3>
+  <ol class="small muted" style="padding-left:20px;margin:0">
+    <li>先在「字段管理」里配置你需要的字段（文本 / 数字 / 日期 / 单选 / 多选 / 是否），字段可随时增删。</li>
+    <li>录入方式：手动新建，或用「Excel 导入」——先下载模板，填好后上传，系统会自动匹配列名并校验。</li>
+    <li>列表页支持按任意字段筛选、关键词搜索、排序，结果可直接导出 Excel。</li>
+    <li>所有增删改、导入导出均记录操作人与时间，管理员可在「审计日志」中查证；删除的记录会保存快照。</li>
+    <li>标记为「敏感」的字段（如姓名、电话）在列表中默认脱敏显示，仅管理员在详情页可见完整值。</li>
+  </ol>
+</div>
+{% endblock %}

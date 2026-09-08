@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}审计日志{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <h2>操作审计日志（共 {{ pagination.total }} 条）</h2>
+    <div class="btn-row">
+      <a class="btn" href="{{ url_for('admin.logs_export') }}">导出日志 CSV</a>
+      <a class="btn" href="{{ url_for('admin.users') }}">用户管理</a>
+    </div>
+  </div>
+
+  <form method="get" class="filter-bar">
+    <div class="filter-item"><label>操作类型</label>
+      <select name="action">
+        <option value="">全部</option>
+        {% for a in actions %}
+        <option value="{{ a }}" {% if action == a %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-item"><label>用户名</label><input type="text" name="user" value="{{ user_kw }}" style="width:120px"></div>
+    <div class="filter-item"><label>起始日期</label><input type="date" name="from" value="{{ date_from }}"></div>
+    <div class="filter-item"><label>结束日期</label><input type="date" name="to" value="{{ date_to }}"></div>
+    <button class="btn btn-primary" type="submit">筛选</button>
+    <a class="btn" href="{{ url_for('admin.logs') }}">重置</a>
+  </form>
+
+  <div class="table-wrap">
+  <table class="grid">
+    <thead><tr>
+      <th class="nowrap">时间</th><th class="nowrap">用户</th><th class="nowrap">操作</th>
+      <th class="nowrap">对象</th><th>详情</th><th class="nowrap">IP</th>
+    </tr></thead>
+    <tbody>
+    {% for l in pagination.items %}
+      <tr>
+        <td class="nowrap small">{{ l.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+        <td class="nowrap">{{ l.username }}</td>
+        <td class="nowrap">
+          {% set cls = 'badge-red' if l.action in ['delete','field_delete','user_delete'] else
+                       ('badge-blue' if l.action in ['create','import','update'] else 'badge-gray') %}
+          <span class="badge {{ cls }}">{{ l.action }}</span>
+        </td>
+        <td class="nowrap small">{{ l.target_type }} {{ l.target_id }}</td>
+        <td class="small" style="max-width:520px;word-break:break-all">{{ l.detail }}</td>
+        <td class="nowrap small muted">{{ l.ip }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="empty">暂无日志</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  {% if pagination.pages > 1 %}
+  <div class="pager">
+    <div class="small muted">第 {{ pagination.page }} / {{ pagination.pages }} 页</div>
+    <div class="pages">
+      {% if pagination.has_prev %}<a href="{{ url_for('admin.logs', page=pagination.prev_num, action=action, user=user_kw, **{'from': date_from, 'to': date_to}) }}">上一页</a>{% endif %}
+      {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if p %}
+          {% if p == pagination.page %}<span class="cur">{{ p }}</span>
+          {% else %}<a href="{{ url_for('admin.logs', page=p, action=action, user=user_kw, **{'from': date_from, 'to': date_to}) }}">{{ p }}</a>{% endif %}
+        {% else %}<span class="muted">…</span>{% endif %}
+      {% endfor %}
+      {% if pagination.has_next %}<a href="{{ url_for('admin.logs', page=pagination.next_num, action=action, user=user_kw, **{'from': date_from, 'to': date_to}) }}">下一页</a>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>登录 · 患者临床信息管理系统</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="login-page">
+<div class="login-box">
+  <h1>患者临床信息管理系统</h1>
+  <div class="sub">Clinic Registry · 本地部署</div>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}<div class="flash flash-{{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+  <form method="post">
+    <div class="field">
+      <label>用户名</label>
+      <input type="text" name="username" value="{{ username or '' }}" required autofocus autocomplete="username">
+    </div>
+    <div class="field">
+      <label>密码</label>
+      <input type="password" name="password" required autocomplete="current-password">
+    </div>
+    <div style="margin:12px 0 16px">
+      <label class="small"><input type="checkbox" name="remember"> 记住我（7 天内免登录）</label>
+    </div>
+    <button class="btn btn-primary" type="submit">登 录</button>
+  </form>
+  <div class="small muted" style="margin-top:16px;text-align:center">
+    忘记密码请联系管理员重置
+  </div>
+</div>
+</body>
+</html>

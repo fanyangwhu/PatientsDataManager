@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block title %}用户管理{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <h2>系统用户</h2>
+    <a class="btn" href="{{ url_for('admin.logs') }}">查看审计日志</a>
+  </div>
+  <div class="table-wrap">
+  <table class="grid">
+    <thead>
+      <tr>
+        <th class="nowrap">ID</th><th>用户名</th><th>姓名</th><th class="nowrap">角色</th>
+        <th class="nowrap">状态</th><th class="nowrap">最后登录</th><th class="nowrap">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for u in users %}
+      <tr>
+        <td class="idcol">{{ u.id }}</td>
+        <td><strong>{{ u.username }}</strong>{% if u.must_change_password %}
+          <span class="badge badge-red">待改密码</span>{% endif %}</td>
+        <td>{{ u.full_name }}</td>
+        <td><span class="role role-{{ u.role }}">{{ u.role_label }}</span></td>
+        <td>{% if u.is_active %}<span class="badge badge-green">正常</span>
+          {% else %}<span class="badge badge-gray">已停用</span>{% endif %}</td>
+        <td class="nowrap small muted">{{ u.last_login_at.strftime('%m-%d %H:%M') if u.last_login_at else '从未登录' }}</td>
+        <td class="nowrap">
+          <button class="btn btn-sm" type="button" onclick="toggleEdit({{ u.id }})">编辑</button>
+          <form method="post" action="{{ url_for('admin.users_delete', uid=u.id) }}" class="inline-form"
+                onsubmit="return confirm('确定删除用户「{{ u.username }}」？')">
+            <button class="btn btn-sm btn-danger" type="submit">删除</button>
+          </form>
+        </td>
+      </tr>
+      <tr id="edit-{{ u.id }}" style="display:none;background:#f9fbff">
+        <td colspan="7">
+          <form method="post" action="{{ url_for('admin.users_update', uid=u.id) }}" class="btn-row">
+            <input type="text" name="full_name" value="{{ u.full_name }}" placeholder="姓名" style="width:120px">
+            <select name="role">
+              {% for k, v in roles.items() %}
+              <option value="{{ k }}" {% if u.role == k %}selected{% endif %}>{{ v }}</option>
+              {% endfor %}
+            </select>
+            <input type="password" name="password" placeholder="重置密码（留空不改）" style="width:180px">
+            <label class="small"><input type="checkbox" name="is_active" {% if u.is_active %}checked{% endif %}> 启用</label>
+            <button class="btn btn-primary btn-sm" type="submit">保存</button>
+            <button class="btn btn-sm" type="button" onclick="toggleEdit({{ u.id }})">取消</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<div class="card" style="max-width:640px">
+  <h3>新建用户</h3>
+  <form method="post" action="{{ url_for('admin.users_new') }}">
+    <div class="form-grid">
+      <div class="field"><label>用户名<span class="req">*</span></label>
+        <input type="text" name="username" required placeholder="拼音或工号"></div>
+      <div class="field"><label>姓名</label><input type="text" name="full_name" placeholder="真实姓名"></div>
+      <div class="field"><label>初始密码<span class="req">*</span></label>
+        <input type="text" name="password" required placeholder="至少 6 位，首次登录需修改"></div>
+      <div class="field"><label>角色</label>
+        <select name="role">
+          {% for k, v in roles.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+        </select></div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:14px" type="submit">创建用户</button>
+  </form>
+  <div class="small muted" style="margin-top:10px">
+    录入员可增删改数据；查看者只能浏览和导出；管理员可管理字段、用户与日志。
+  </div>
+</div>
+{% endblock %}

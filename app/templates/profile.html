@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}我的操作记录{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head"><h2>我的操作记录（最近 50 条）</h2></div>
+  <div class="table-wrap">
+  <table class="grid">
+    <thead><tr><th class="nowrap">时间</th><th>操作</th><th>对象</th><th>详情</th><th>IP</th></tr></thead>
+    <tbody>
+    {% for l in logs %}
+      <tr>
+        <td class="nowrap small">{{ l.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td class="nowrap">{{ l.action }}</td>
+        <td class="nowrap small">{{ l.target_type }} {{ l.target_id }}</td>
+        <td class="small">{{ l.detail }}</td>
+        <td class="small muted">{{ l.ip }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="empty">暂无记录</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

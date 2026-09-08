@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% block title %}字段管理{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <h2>自定义字段（共 {{ fields|length }} 个）</h2>
+    <div class="btn-row">
+      <a class="btn btn-primary" href="{{ url_for('fields.new') }}">+ 新建字段</a>
+      <a class="btn" href="{{ url_for('records.template') }}">下载导入模板</a>
+      <a class="btn" href="{{ url_for('records.list_view') }}">返回列表</a>
+    </div>
+  </div>
+
+  <div class="table-wrap tall">
+  <table class="grid">
+    <thead>
+      <tr>
+        <th class="nowrap">顺序</th>
+        <th>字段名称</th>
+        <th class="nowrap">标识(Excel列名)</th>
+        <th class="nowrap">类型</th>
+        <th class="nowrap">单位</th>
+        <th class="nowrap">必填</th>
+        <th class="nowrap">唯一</th>
+        <th class="nowrap">列表显示</th>
+        <th class="nowrap">可搜索</th>
+        <th class="nowrap">敏感脱敏</th>
+        <th class="nowrap">主标识</th>
+        <th class="nowrap">已有数据</th>
+        <th class="nowrap">状态</th>
+        <th class="nowrap">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for f in fields %}
+      <tr>
+        <td class="nowrap">
+          <form method="post" action="{{ url_for('fields.move', fid=f.id) }}" class="inline-form">
+            <input type="hidden" name="dir" value="up">
+            <button class="btn btn-sm" type="submit" title="上移">↑</button>
+          </form>
+          <form method="post" action="{{ url_for('fields.move', fid=f.id) }}" class="inline-form">
+            <input type="hidden" name="dir" value="down">
+            <button class="btn btn-sm" type="submit" title="下移">↓</button>
+          </form>
+        </td>
+        <td><strong>{{ f.label }}</strong>
+          {% if f.help_text %}<div class="small muted">{{ f.help_text }}</div>{% endif %}
+          {% if f.type in option_types and f.option_list() %}
+            <div class="small muted">选项：{{ f.option_list()|join('、') }}</div>{% endif %}
+        </td>
+        <td class="nowrap small">{{ f.key }}</td>
+        <td class="nowrap">{{ types.get(f.type, f.type) }}</td>
+        <td class="nowrap">{{ f.unit or '—' }}</td>
+        <td class="nowrap">{{ '是' if f.required else '—' }}</td>
+        <td class="nowrap">{{ '是' if f.is_unique else '—' }}</td>
+        <td class="nowrap">{{ '是' if f.show_in_list else '—' }}</td>
+        <td class="nowrap">{{ '是' if f.searchable else '—' }}</td>
+        <td class="nowrap">{{ '是' if f.is_sensitive else '—' }}</td>
+        <td class="nowrap">{{ '是' if f.is_primary else '—' }}</td>
+        <td class="nowrap num">{{ usage.get(f.id, 0) }}</td>
+        <td class="nowrap">
+          {% if f.is_active %}<span class="badge badge-green">启用</span>
+          {% else %}<span class="badge badge-gray">停用</span>{% endif %}
+        </td>
+        <td class="nowrap">
+          <a class="btn btn-sm" href="{{ url_for('fields.edit', fid=f.id) }}">编辑</a>
+          {% if f.is_active %}
+          <form method="post" action="{{ url_for('fields.delete', fid=f.id) }}" class="inline-form"
+                onsubmit="return confirm('停用后该字段不再出现在录入表单和列表中，但历史数据仍保留。确定停用「{{ f.label }}」？')">
+            <input type="hidden" name="mode" value="keep">
+            <button class="btn btn-sm" type="submit">停用</button>
+          </form>
+          {% else %}
+          <form method="post" action="{{ url_for('fields.restore', fid=f.id) }}" class="inline-form">
+            <button class="btn btn-sm" type="submit">启用</button>
+          </form>
+          {% endif %}
+          <button class="btn btn-sm btn-danger" type="button"
+                  onclick="openDeleteModal({{ f.id }}, '{{ f.label }}', {{ usage.get(f.id, 0) }})">删除…</button>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="14" class="empty">还没有字段，点击「新建字段」开始配置。</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <div class="small muted" style="margin-top:12px">
+    提示：字段顺序决定录入表单与 Excel 模板的列顺序；「主标识」字段会作为列表首列（如姓名）；
+    停用字段不会丢失数据，重新启用后数据仍在。
+  </div>
+</div>
+
+<div class="modal" id="delModal">
+  <div class="modal-box">
+    <h3 id="delTitle">删除字段</h3>
+    <p class="small" id="delDesc"></p>
+    <form method="post" id="delForm">
+      <input type="hidden" name="mode" value="keep">
+      <div class="btn-row" style="margin-top:16px">
+        <button class="btn btn-solid-danger" type="submit" onclick="document.querySelector('#delForm input[name=mode]').value='purge'">
+          彻底删除字段和全部数据
+        </button>
+        <button class="btn" type="button" onclick="closeModal()">取消</button>
+      </div>
+    </form>
+    <div class="small muted" style="margin-top:10px">
+      若只想让字段不再使用、但保留已录入的数据，请改用「停用」。
+    </div>
+  </div>
+</div>
+{% endblock %}

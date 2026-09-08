@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}{{ '新建' if is_new else '编辑' }}患者记录{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <h2>{{ '新建患者记录' if is_new else '编辑记录 #' ~ patient.id }}</h2>
+    <a class="btn" href="{{ url_for('records.list_view') }}">返回列表</a>
+  </div>
+  <form method="post">
+    <div class="form-grid">
+      {% for f in fields %}
+      <div class="field">
+        <label for="field_{{ f.id }}">{{ f.label_with_unit }}{% if f.required %}<span class="req">*</span>{% endif %}</label>
+        {{ m.widget(f, values.get(f.id)) }}
+        {% if f.help_text %}<span class="hint">{{ f.help_text }}</span>{% endif %}
+        {% if f.is_unique %}<span class="hint">唯一字段，不能重复</span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% if not fields %}
+      <div class="empty">还没有配置任何字段，请先到「字段管理」添加字段。</div>
+    {% endif %}
+    <div class="btn-row" style="margin-top:20px">
+      <button class="btn btn-primary" type="submit">保存</button>
+      {% if is_new %}
+      <button class="btn" type="submit" name="save_and_new" value="1">保存并继续新建</button>
+      {% endif %}
+      <a class="btn" href="{{ url_for('records.list_view') }}">取消</a>
+      {% if not is_new %}
+      <a class="btn" href="{{ url_for('records.detail', pid=patient.id) }}">查看该记录</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}

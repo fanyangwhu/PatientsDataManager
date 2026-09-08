@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}{{ code }} 错误{% endblock %}
+{% block content %}
+<div class="card" style="text-align:center;padding:50px">
+  <div style="font-size:48px;font-weight:700;color:#c9d2de">{{ code }}</div>
+  <p class="muted">{{ message }}</p>
+  <a class="btn btn-primary" href="{{ url_for('index') }}">返回首页</a>
+</div>
+{% endblock %}

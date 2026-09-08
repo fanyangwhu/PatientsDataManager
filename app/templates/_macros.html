@@ -1,0 +1,35 @@
+{% macro widget(f, value) %}
+{% if f.type == 'text' %}
+  <input type="text" name="field_{{ f.id }}" value="{{ value or '' }}" {% if f.required %}required{% endif %}
+         placeholder="{{ f.help_text or '' }}" autocomplete="off">
+{% elif f.type == 'textarea' %}
+  <textarea name="field_{{ f.id }}" placeholder="{{ f.help_text or '' }}">{{ value or '' }}</textarea>
+{% elif f.type == 'number' %}
+  <input type="number" step="any" name="field_{{ f.id }}" value="{{ value or '' }}"
+         {% if f.required %}required{% endif %} autocomplete="off">
+{% elif f.type == 'date' %}
+  <input type="date" name="field_{{ f.id }}" value="{{ value or '' }}">
+{% elif f.type == 'select' %}
+  <select name="field_{{ f.id }}" {% if f.required %}required{% endif %}>
+    <option value="">— 请选择 —</option>
+    {% for opt in f.option_list() %}
+    <option value="{{ opt }}" {% if value == opt %}selected{% endif %}>{{ opt }}</option>
+    {% endfor %}
+  </select>
+{% elif f.type == 'multiselect' %}
+  {% set cur = value.split(';') if value else [] %}
+  <div class="check-row">
+    {% for opt in f.option_list() %}
+    <label><input type="checkbox" name="field_{{ f.id }}" value="{{ opt }}"
+      {% if opt in cur %}checked{% endif %}> {{ opt }}</label>
+    {% endfor %}
+  </div>
+{% elif f.type == 'boolean' %}
+  <label><input type="checkbox" name="field_{{ f.id }}" value="1"
+    {% if value == '1' or value == '是' %}checked{% endif %}> 是</label>
+{% endif %}
+{% endmacro %}
+
+{% macro display(v) %}
+{% if v %}{{ v }}{% else %}<span class="cell-empty">—</span>{% endif %}
+{% endmacro %}

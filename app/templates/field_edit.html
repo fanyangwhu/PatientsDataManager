@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}{{ '新建字段' if is_new else '编辑字段' }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:720px">
+  <div class="card-head">
+    <h2>{{ '新建字段' if is_new else '编辑字段：' ~ field.label }}</h2>
+    <a class="btn" href="{{ url_for('fields.index') }}">返回</a>
+  </div>
+  <form method="post">
+    <div class="form-grid">
+      <div class="field">
+        <label>字段名称（中文显示名）<span class="req">*</span></label>
+        <input type="text" name="label" value="{{ field.label or '' }}" required placeholder="如：术前血红蛋白">
+      </div>
+      <div class="field">
+        <label>英文标识（Excel 列名，可留空自动生成）</label>
+        <input type="text" name="key" value="{{ field.key if not is_new else '' }}" placeholder="如：hb_pre">
+        <span class="hint">只能包含字母、数字、下划线，且不能重复</span>
+      </div>
+      <div class="field">
+        <label>字段类型<span class="req">*</span></label>
+        <select name="type" id="typeSel" onchange="toggleOptions()">
+          {% for k, v in types.items() %}
+          <option value="{{ k }}" {% if field.type == k %}selected{% endif %}>{{ v }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>单位（可选）</label>
+        <input type="text" name="unit" value="{{ field.unit or '' }}" placeholder="如：g/L、岁、mm">
+      </div>
+    </div>
+
+    <div class="field" id="optionsBox" style="margin-top:14px;display:none">
+      <label>可选项（英文逗号分隔）</label>
+      <input type="text" name="options" value="{{ field.option_list()|join(',') }}" placeholder="如：高血压,糖尿病,冠心病">
+      <span class="hint">导入时若填了选项以外的值会报错；多选在 Excel 中用分号分隔，如：高血压;糖尿病</span>
+    </div>
+
+    <div class="field" style="margin-top:14px">
+      <label>填写说明（可选）</label>
+      <input type="text" name="help_text" value="{{ field.help_text or '' }}" placeholder="显示在输入框下方的灰色提示">
+    </div>
+
+    <div style="margin-top:16px">
+      <label class="small" style="font-weight:600">属性</label>
+      <div class="check-row" style="margin-top:6px">
+        <label><input type="checkbox" name="required" {% if field.required %}checked{% endif %}> 必填</label>
+        <label><input type="checkbox" name="is_unique" {% if field.is_unique %}checked{% endif %}> 值唯一（如住院号/身份证）</label>
+        <label><input type="checkbox" name="show_in_list" {% if field.show_in_list or is_new %}checked{% endif %}> 列表中显示</label>
+        <label><input type="checkbox" name="searchable" {% if field.searchable or is_new %}checked{% endif %}> 参与关键词搜索</label>
+        <label><input type="checkbox" name="is_sensitive" {% if field.is_sensitive %}checked{% endif %}> 敏感字段（列表脱敏）</label>
+        <label><input type="checkbox" name="is_primary" {% if field.is_primary %}checked{% endif %}> 设为主标识（列表首列）</label>
+        <label><input type="checkbox" name="is_active" {% if field.is_active or is_new %}checked{% endif %}> 启用</label>
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:20px">
+      <button class="btn btn-primary" type="submit">保存</button>
+      <a class="btn" href="{{ url_for('fields.index') }}">取消</a>
+    </div>
+  </form>
+</div>
+<script>
+function toggleOptions(){
+  var t = document.getElementById('typeSel').value;
+  var need = {{ option_types|list|tojson }};
+  document.getElementById('optionsBox').style.display = need.indexOf(t) >= 0 ? 'block' : 'none';
+}
+toggleOptions();
+</script>
+{% endblock %}

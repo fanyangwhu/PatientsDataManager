@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}患者临床信息管理系统{% endblock %}</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+{% if current_user.is_authenticated %}
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">CR</span>
+    <div>
+      <div class="brand-title">患者临床信息管理系统</div>
+      <div class="brand-sub">本地部署 · 科室内网可用</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <a href="{{ url_for('index') }}" class="{{ 'active' if (request.endpoint or '') == 'index' }}">数据总览</a>
+    <a href="{{ url_for('records.list_view') }}" class="{{ 'active' if (request.endpoint or '').startswith('records.list') }}">患者列表</a>
+    <a href="{{ url_for('records.import_view') }}" class="{{ 'active' if (request.endpoint or '').startswith('records.import') }}">Excel 导入</a>
+    {% if current_user.is_admin() %}
+    <a href="{{ url_for('fields.index') }}" class="{{ 'active' if (request.endpoint or '').startswith('fields.') }}">字段管理</a>
+    <a href="{{ url_for('admin.users') }}" class="{{ 'active' if (request.endpoint or '').startswith('admin.users') }}">用户管理</a>
+    <a href="{{ url_for('admin.logs') }}" class="{{ 'active' if (request.endpoint or '').startswith('admin.logs') }}">审计日志</a>
+    {% endif %}
+  </nav>
+  <div class="userbox">
+    <div class="uname">{{ current_user.full_name or current_user.username }}
+      <span class="role role-{{ current_user.role }}">{{ current_user.role_label }}</span>
+    </div>
+    <div class="umenu">
+      <a href="{{ url_for('auth.change_password') }}">修改密码</a>
+      <a href="{{ url_for('auth.me') }}">我的操作</a>
+      <a href="{{ url_for('auth.logout') }}">退出</a>
+    </div>
+  </div>
+</header>
+{% endif %}
+
+<main class="container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flashes">
+        {% for cat, msg in messages %}
+          <div class="flash flash-{{ cat }}">{{ msg }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="footer">
+  数据保存在本机数据库文件中，请定期通过「数据总览 → 备份数据库」或复制 data/registry.db 做备份。
+</footer>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
