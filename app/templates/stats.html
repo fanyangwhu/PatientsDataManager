@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% block title %}统计看板{% endblock %}
+{% block content %}
+
+<div class="card-head" style="margin-bottom:14px">
+  <h2 style="margin:0">统计看板</h2>
+  <div class="btn-row">
+    <a class="btn" href="{{ url_for('records.list_view') }}">返回列表</a>
+    <a class="btn" href="{{ url_for('records.export', scope='all') }}">导出全部 Excel</a>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="n">{{ overview.total }}</div><div class="t">患者记录总数</div></div>
+  <div class="stat"><div class="n">{{ overview.new_this_month }}</div><div class="t">本月新增</div></div>
+  <div class="stat"><div class="n">{{ overview.fields }}</div><div class="t">启用字段数</div></div>
+  <div class="stat">
+    <div class="n" style="color:{% if overview.completeness >= 80 %}#1a9251{% elif overview.completeness >= 50 %}#c47f0a{% else %}#d93636{% endif %}">
+      {{ '%.0f'|format(overview.completeness) }}%</div>
+    <div class="t">整体数据完整度</div>
+  </div>
+</div>
+
+{% if overview.total == 0 %}
+<div class="card">
+  <div class="empty">还没有数据。先<a href="{{ url_for('records.create') }}">录入</a>或
+    <a href="{{ url_for('records.import_view') }}">导入</a>一些记录，这里就会自动生成图表。</div>
+</div>
+{% else %}
+
+<div class="card">
+  <h3>入组趋势（最近 12 个月，按记录创建时间）</h3>
+  {% if created_counts %}
+    {{ trend }}
+  {% else %}
+    <p class="muted small">暂无数据</p>
+  {% endif %}
+</div>
+
+{% for c in cards %}
+<div class="card stat-card">
+  <div class="stat-card-head">
+    <h3>{{ c.field.label_with_unit }}</h3>
+    <div class="stat-card-meta">
+      <span class="badge badge-blue">{{ c.count }} / {{ total }} 已填</span>
+      <span class="badge {% if c.rate >= 80 %}badge-green{% elif c.rate >= 50 %}badge-red{% else %}badge-gray{% endif %}">
+        缺失 {{ c.missing }} 条</span>
+    </div>
+  </div>
+
+  {% if c.kind == 'category' %}
+    <div class="chart-row">
+      <div class="chart-box" style="max-width:220px">{{ c.donut }}</div>
+      <div class="chart-box">{{ c.legend }}</div>
+    </div>
+
+  {% elif c.kind == 'multi' %}
+    <div class="chart-row">
+      <div class="chart-box" style="max-width:560px">{{ c.bar }}</div>
+      <div class="chart-box">{{ c.legend }}</div>
+    </div>
+    <p class="small muted" style="margin:6px 0 0">多选题按选项出现次数统计（一人可选多项，故合计可大于人数）。</p>
+
+  {% elif c.kind == 'number' %}
+    <div class="chart-row">
+      <div class="chart-box" style="max-width:560px">{{ c.hist }}</div>
+      <div class="chart-box">
+        <table class="mini-stats">
+          <tr><td>例数</td><td class="v">{{ c.stats.n }}</td></tr>
+          <tr><td>均数 ± 标准差</td><td class="v">{{ fmt(c.stats.mean) }} ± {{ fmt(c.stats.sd) }}</td></tr>
+          <tr><td>中位数</td><td class="v">{{ fmt(c.stats.median) }}</td></tr>
+          <tr><td>四分位 P25 / P75</td><td class="v">{{ fmt(c.stats.p25) }} / {{ fmt(c.stats.p75) }}</td></tr>
+          <tr><td>最小 / 最大</td><td class="v">{{ fmt(c.stats.min) }} / {{ fmt(c.stats.max) }}</td></tr>
+        </table>
+      </div>
+    </div>
+
+  {% elif c.kind == 'date' %}
+    <div class="chart-box" style="max-width:560px">{{ c.trend }}</div>
+    <p class="small muted" style="margin:6px 0 0">按月汇总（最多显示最近 12 个月）。</p>
+
+  {% elif c.kind == 'text' %}
+    {% if c.bar %}
+      <div class="chart-row">
+        <div class="chart-box" style="max-width:560px">{{ c.bar }}</div>
+        <div class="chart-box">
+          <table class="mini-stats">
+            <tr><td>已填例数</td><td class="v">{{ c.filled_n }}</td></tr>
+            <tr><td>不同取值数</td><td class="v">{{ c.distinct }}</td></tr>
+          </table>
+        </div>
+      </div>
+      <p class="small muted" style="margin:6px 0 0">自由文本字段，此处列出出现最多的前 10 个取值。</p>
+    {% else %}
+      <p class="muted small">自由文本字段（取值过于分散或仅 1 种取值），无统计图表。</p>
+    {% endif %}
+
+  {% else %}
+    <p class="muted small">该字段暂无已填写的数据。</p>
+  {% endif %}
+</div>
+{% endfor %}
+
+<div class="card">
+  <h3>数据完整度（按字段，缺失最多的排在前面）</h3>
+  <div class="table-wrap">
+  <table class="grid">
+    <thead><tr>
+      <th>字段</th><th class="nowrap">已填 / 总数</th><th class="nowrap">缺失</th>
+      <th style="width:200px">完整度</th><th class="nowrap">百分比</th>
+    </tr></thead>
+    <tbody>
+    {% for c in comp_rows %}
+      <tr>
+        <td>{{ c.field.label_with_unit }}</td>
+        <td class="nowrap">{{ c.count }} / {{ total }}</td>
+        <td class="nowrap">{{ c.missing }}</td>
+        <td>{{ c.bar }}</td>
+        <td class="nowrap">{{ '%.1f'|format(c.rate) }}%</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="small muted" style="margin:10px 0 0">
+    完整度低的字段，要么是录入时经常漏填，要么是停用过的历史字段 —— 可据此优化录入表单和 Excel 模板。
+  </p>
+</div>
+
+{% endif %}
+{% endblock %}

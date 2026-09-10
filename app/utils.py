@@ -2,6 +2,7 @@
 """Excel 导入导出、查询构建、备份等工具函数"""
 import io
 import os
+import sys
 import csv
 import json
 import shutil
@@ -331,3 +332,105 @@ def backup_database(db_path, backup_dir):
     dst = os.path.join(backup_dir, f'registry_backup_{stamp}.db')
     shutil.copy2(db_path, dst)
     return dst
+
+
+# ---------------- 局域网地址探测 ----------------
+
+def _is_private(ip):
+    """判断是否常见的内网私有地址段（10.x / 192.168.x / 172.16-31.x）"""
+    parts = ip.split('.')
+    if len(parts) != 4:
+        return False
+    try:
+        a, b = int(parts[0]), int(parts[1])
+    except ValueError:
+        return False
+    if a == 10:
+        return True
+    if a == 192 and b == 168:
+        return True
+    if a == 172 and 16 <= b <= 31:
+        return True
+    return False
+
+
+def lan_addresses(port=5000):
+    """探测本机所有可用的局域网 IPv4 地址，按优先级排序。
+
+    返回 [{'ip': '192.168.1.9', 'url': 'http://192.168.1.9:5000', 'kind': '以太网'}]
+    排除回环地址 127.* 与链路本地地址 169.254.*（后者通常是网线没插好 /
+    DHCP 没拿到地址，其他电脑实际连不上，列出来只会误导）。
+    """
+    import socket
+    found = {}
+
+    def add(ip, kind):
+        if not ip:
+            return
+        if ip.startswith('127.') or ip.startswith('169.254.'):
+            return
+        if ip not in found:
+            found[ip] = kind
+
+    # 1) 主出口网卡（最可能是正在联网的那块）
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0.3)
+        s.connect(('223.5.5.5', 80))          # 阿里 DNS，只探测不发包
+        add(s.getsockname()[0], '主网卡')
+        s.close()
+    except Exception:
+        pass
+
+    # 2) 主机名解析到的所有地址（覆盖多网卡 / 虚拟机网卡）
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            add(info[4][0], '网卡')
+    except Exception:
+        pass
+
+    # 3) 读系统路由表兜底（Windows 上 getaddrinfo 有时只返回回环）
+    if not found:
+        try:
+            import subprocess
+            out = subprocess.run(['ipconfig'], capture_output=True, text=True,
+                                 encoding='gbk', errors='ignore', timeout=5).stdout \
+                if sys.platform == 'win32' else \
+                subprocess.run(['ip', '-4', 'addr'], capture_output=True, text=True,
+                               errors='ignore', timeout=5).stdout
+            for line in out.splitlines():
+                line = line.strip()
+                if sys.platform == 'win32':
+                    if 'IPv4' in line or 'IP Address' in line:
+                        for tok in line.split():
+                            if tok.count('.') == 3 and _is_private(tok):
+                                add(tok, '网卡')
+                else:
+                    if line.startswith('inet '):
+                        add(line.split()[1].split('/')[0], '网卡')
+        except Exception:
+            pass
+
+    out = []
+    for ip, kind in found.items():
+        out.append({
+            'ip': ip,
+            'url': f'http://{ip}:{port}',
+            'kind': kind,
+            'private': _is_private(ip),
+        })
+    # 私有地址段优先，其次按 IP 排序
+    out.sort(key=lambda x: (not x['private'], [int(p) for p in x['ip'].split('.')]))
+    return out
+
+
+def current_port(request=None, default=5000):
+    """取当前站点实际端口，用于拼 URL"""
+    try:
+        if request is not None:
+            host = request.host or ''
+            if ':' in host:
+                return int(host.rsplit(':', 1)[1])
+    except Exception:
+        pass
+    return default

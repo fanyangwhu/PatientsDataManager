@@ -14,6 +14,7 @@
     <h2>最近更新的记录</h2>
     <div class="btn-row">
       <a class="btn btn-primary" href="{{ url_for('records.create') }}">+ 新建患者记录</a>
+      <a class="btn" href="{{ url_for('stats.index') }}">统计看板</a>
       <a class="btn" href="{{ url_for('records.import_view') }}">Excel 导入</a>
       <a class="btn" href="{{ url_for('records.export', scope='all') }}">导出全部 Excel</a>
       {% if current_user.is_admin() %}
@@ -49,12 +50,46 @@
 </div>
 
 <div class="card">
-  <h3>共享访问</h3>
-  <p class="small" style="margin-top:0">
-    同一科室的其他电脑，在浏览器里打开
-    <code>http://{{ request.host }}</code>
-    即可共用这套系统（需在同一局域网，且本程序保持运行）。
+  <div class="card-head">
+    <h3 style="margin:0">共享访问（局域网地址）</h3>
+    <button class="btn btn-sm" type="button" onclick="refreshLan()">刷新地址</button>
+  </div>
+
+  {% if lan_addresses %}
+  <p class="small muted" style="margin-top:0">
+    同一科室的其他电脑，在浏览器里打开下面的地址即可共用这套系统
+    （需在同一局域网，且本程序保持运行）。
   </p>
+  <div class="lan-list">
+    {% for a in lan_addresses %}
+    <div class="lan-item">
+      <div class="lan-main">
+        <a class="lan-url" href="{{ a.url }}" target="_blank" rel="noopener">{{ a.url }}</a>
+        <span class="badge {% if a.private %}badge-green{% else %}badge-gray{% endif %}">
+          {{ '内网地址' if a.private else '其他地址' }}</span>
+      </div>
+      <button class="btn btn-sm" type="button" onclick="copyText('{{ a.url }}', this)">复制</button>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="small muted" style="margin-top:10px">
+    本机自己用：<code>{{ self_url }}</code>
+    {% if lan_addresses|length > 1 %}
+    <br>检测到多个网卡地址，如果同事用第一个打不开，试下一个（虚拟机、WiFi、有线网卡会各有一个地址）。
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="flash flash-warning" style="margin-top:0">
+    没有检测到可用的局域网地址，其他电脑暂时无法通过网址访问。
+  </div>
+  <p class="small muted">
+    常见原因：网线没插 / 没连 WiFi、或者电脑拿到的地址是无效地址（169.254 开头）。
+    <br>排查办法：在本机按 <code>Win + R</code> 输入 <code>cmd</code> 回车，执行
+    <code>ipconfig</code>，找「IPv4 地址」那一行（通常是 192.168.x.x 或 10.x.x.x），
+    把其中的地址替换到 <code>http://该地址:{{ server_port }}</code>。
+    <br>连上网后点右上角「刷新地址」重新检测。
+  </p>
+  {% endif %}
 </div>
 
 <div class="card">

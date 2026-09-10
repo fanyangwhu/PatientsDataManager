@@ -60,11 +60,13 @@ def create_app(test_config=None):
         _enable_sqlite_pragmas(app)
 
     from .auth import bp as auth_bp
+    from .stats import bp as stats_bp
     from .fields import bp as fields_bp
     from .records import bp as records_bp
     from .admin import bp as admin_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(fields_bp)
+    app.register_blueprint(stats_bp)
     app.register_blueprint(records_bp)
     app.register_blueprint(admin_bp)
 
@@ -136,9 +138,29 @@ def create_app(test_config=None):
     def server_error(e):
         return render_template('error.html', code=500, message='服务器内部错误，请查看启动窗口的报错信息'), 500
 
+    # ---------- 局域网地址（供页面显示，带 60 秒缓存）----------
+    _lan_cache = {'ts': 0.0, 'ips': []}
+
     @app.context_processor
     def inject_globals():
-        return {'app_version': '1.0.0', 'now': datetime.now()}
+        import time as _time
+        now_ts = _time.time()
+        if request.args.get('lan_refresh'):
+            _lan_cache['ts'] = 0        # 强制重新探测
+        if now_ts - _lan_cache['ts'] > 60:
+            from .utils import lan_addresses as _lan
+            _lan_cache['ips'] = _lan(5000)
+            _lan_cache['ts'] = now_ts
+        try:
+            port = int(request.host.rsplit(':', 1)[1]) if ':' in (request.host or '') else 5000
+        except Exception:
+            port = 5000
+        addrs = []
+        for a in _lan_cache['ips']:
+            addrs.append({**a, 'url': f"http://{a['ip']}:{port}"})
+        return {'app_version': '1.0.0', 'now': datetime.now(),
+                'lan_addresses': addrs, 'server_port': port,
+                'self_url': request.host_url.rstrip('/')}
 
     # ---------- CLI ----------
     @app.cli.command('init-db')

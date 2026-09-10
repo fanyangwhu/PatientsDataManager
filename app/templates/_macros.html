@@ -1,16 +1,20 @@
-{% macro widget(f, value) %}
+{% macro widget(f, value, name=None, disabled=False, required=None) %}
+{# name: 自定义表单字段名（批量修改页统一用 "value"）；disabled: 初始禁用（未选中的字段不提交） #}
+{% set nm = name or ('field_' ~ f.id) %}
+{% set rq = f.required if required is none else required %}
+{% set ds = 'disabled' if disabled else '' %}
 {% if f.type == 'text' %}
-  <input type="text" name="field_{{ f.id }}" value="{{ value or '' }}" {% if f.required %}required{% endif %}
+  <input type="text" name="{{ nm }}" value="{{ value or '' }}" {% if rq %}required{% endif %} {{ ds }}
          placeholder="{{ f.help_text or '' }}" autocomplete="off">
 {% elif f.type == 'textarea' %}
-  <textarea name="field_{{ f.id }}" placeholder="{{ f.help_text or '' }}">{{ value or '' }}</textarea>
+  <textarea name="{{ nm }}" {{ ds }} placeholder="{{ f.help_text or '' }}">{{ value or '' }}</textarea>
 {% elif f.type == 'number' %}
-  <input type="number" step="any" name="field_{{ f.id }}" value="{{ value or '' }}"
-         {% if f.required %}required{% endif %} autocomplete="off">
+  <input type="number" step="any" name="{{ nm }}" value="{{ value or '' }}" {{ ds }}
+         {% if rq %}required{% endif %} autocomplete="off">
 {% elif f.type == 'date' %}
-  <input type="date" name="field_{{ f.id }}" value="{{ value or '' }}">
+  <input type="date" name="{{ nm }}" value="{{ value or '' }}" {{ ds }}>
 {% elif f.type == 'select' %}
-  <select name="field_{{ f.id }}" {% if f.required %}required{% endif %}>
+  <select name="{{ nm }}" {% if rq %}required{% endif %} {{ ds }}>
     <option value="">— 请选择 —</option>
     {% for opt in f.option_list() %}
     <option value="{{ opt }}" {% if value == opt %}selected{% endif %}>{{ opt }}</option>
@@ -20,12 +24,12 @@
   {% set cur = value.split(';') if value else [] %}
   <div class="check-row">
     {% for opt in f.option_list() %}
-    <label><input type="checkbox" name="field_{{ f.id }}" value="{{ opt }}"
+    <label><input type="checkbox" name="{{ nm }}" value="{{ opt }}" {{ ds }}
       {% if opt in cur %}checked{% endif %}> {{ opt }}</label>
     {% endfor %}
   </div>
 {% elif f.type == 'boolean' %}
-  <label><input type="checkbox" name="field_{{ f.id }}" value="1"
+  <label><input type="checkbox" name="{{ nm }}" value="1" {{ ds }}
     {% if value == '1' or value == '是' %}checked{% endif %}> 是</label>
 {% endif %}
 {% endmacro %}

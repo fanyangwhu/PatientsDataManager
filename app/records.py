@@ -3,6 +3,7 @@
 import os
 import json
 import uuid
+import urllib.parse
 from datetime import datetime
 
 from flask import (Blueprint, render_template, redirect, url_for, request, flash,
@@ -102,7 +103,9 @@ def list_view():
     return render_template('records_list.html', rows=rows, fields=fields, list_fields=list_fields,
                            pagination=pagination, filters=filters, keyword=keyword,
                            sort_fid=str(sort_fid), desc=desc, per_page=per_page,
-                           per_page_options=PER_PAGE_OPTIONS, has_primary=bool(primary),
+                           per_page_options=PER_PAGE_OPTIONS,
+                           primary_label=(primary.label if primary else '记录'),
+                           primary_id=(primary.id if primary else None),
                            types=dict((f.id, f.type) for f in fields))
 
 
@@ -215,6 +218,212 @@ def delete(pid):
     log_action(current_user, 'delete', 'patient', pid, json.dumps(snapshot, ensure_ascii=False))
     db.session.commit()
     flash(f'记录 #{pid} 已删除（操作已留痕，可在审计日志中查看快照）。', 'warning')
+    return redirect(url_for('records.list_view'))
+
+
+# ---------------- 批量操作 ----------------
+
+def _resolve_target_ids(form):
+    """根据表单参数解析出要操作的记录 ID 列表。
+    支持两种模式：
+      - selected：复选框勾选的 id（form 里的 ids / pid 参数）
+      - all_filtered：符合当前筛选条件的全部结果（重跑一次查询）
+    """
+    mode = form.get('mode', 'selected')
+    if mode == 'all_filtered':
+        qs = form.get('qs', '')
+        args = dict(urllib.parse.parse_qsl(qs))
+        filters = {}
+        for k, v in args.items():
+            if k.startswith('f_') and v.strip():
+                try:
+                    filters[int(k[2:])] = v.strip()
+                except ValueError:
+                    pass
+        q = build_patient_query(filters, args.get('kw', ''), args.get('sort', ''),
+                                args.get('dir') == 'desc')
+        return [p.id for p in q.all()], 'all_filtered'
+    raw = form.get('ids', '')
+    ids = []
+    for x in raw.split(','):
+        x = x.strip()
+        if x.isdigit():
+            ids.append(int(x))
+    if not ids:
+        ids = [int(x) for x in form.getlist('pid') if x.isdigit()]
+    return ids, 'selected'
+
+
+@bp.route('/bulk/delete', methods=['POST'])
+@login_required
+@edit_required
+def bulk_delete_confirm():
+    """第一步：列出将被删除的记录，要求二次确认"""
+    ids, mode = _resolve_target_ids(request.form)
+    if not ids:
+        flash('请先勾选要删除的记录。', 'warning')
+        return redirect(url_for('records.list_view'))
+    patients = Patient.query.filter(Patient.id.in_(ids)).order_by(Patient.id).all()
+    fields = _active_fields()
+    values = load_values([p.id for p in patients])
+    primary = next((f for f in fields if f.is_primary), None)
+    rows = []
+    for p in patients:
+        pv = values.get(p.id, {})
+        title = f'记录 #{p.id}'
+        if primary and primary.id in pv:
+            t = value_to_display(primary, pv[primary.id], mask=False)
+            if t:
+                title = t
+        rows.append({'id': p.id, 'title': title,
+                     'updated': p.updated_at.strftime('%m-%d %H:%M') if p.updated_at else ''})
+    return render_template('bulk_delete_confirm.html', rows=rows, mode=mode,
+                           ids_str=','.join(str(i) for i in ids),
+                           qs=request.form.get('qs', ''), total=len(rows))
+
+
+@bp.route('/bulk/delete/apply', methods=['POST'])
+@login_required
+@edit_required
+def bulk_delete_apply():
+    if request.form.get('confirm') != 'yes':
+        flash('已取消删除。', 'info')
+        return redirect(url_for('records.list_view'))
+    ids = [int(x) for x in request.form.get('ids', '').split(',') if x.strip().isdigit()]
+    if not ids:
+        flash('没有待删除的记录。', 'warning')
+        return redirect(url_for('records.list_view'))
+
+    fmap = {f.id: f for f in Field.query.all()}
+    patients = Patient.query.filter(Patient.id.in_(ids)).all()
+    # 删除前留快照（最多留 200 条的明细，避免日志过大）
+    snapshots = []
+    for p in patients:
+        snap = {fmap[v.field_id].label: value_to_display(fmap[v.field_id], v)
+                for v in PatientValue.query.filter_by(patient_id=p.id).all()
+                if v.field_id in fmap}
+        snapshots.append({'id': p.id, 'data': snap})
+    detail = json.dumps({'count': len(patients),
+                         'ids': [p.id for p in patients],
+                         'sample': snapshots[:200]}, ensure_ascii=False)
+
+    PatientValue.query.filter(PatientValue.patient_id.in_(ids)).delete(synchronize_session=False)
+    Patient.query.filter(Patient.id.in_(ids)).delete(synchronize_session=False)
+    log_action(current_user, 'bulk_delete', 'patient', '', detail)
+    db.session.commit()
+    flash(f'已删除 {len(patients)} 条记录。删除内容已存入审计日志（含前 200 条快照）。', 'warning')
+    return redirect(url_for('records.list_view'))
+
+
+@bp.route('/bulk/edit', methods=['POST'])
+@login_required
+@edit_required
+def bulk_edit_form():
+    """第一步：选择要改哪个字段、改成什么值"""
+    ids, mode = _resolve_target_ids(request.form)
+    if not ids:
+        flash('请先勾选要修改的记录。', 'warning')
+        return redirect(url_for('records.list_view'))
+    fields = _active_fields()
+    editable = [f for f in fields if f.type != 'textarea']   # 多行文本不适合批量统一赋值
+    return render_template('bulk_edit.html', fields=editable, total=len(ids),
+                           mode=mode, ids_str=','.join(str(i) for i in ids),
+                           qs=request.form.get('qs', ''))
+
+
+@bp.route('/bulk/edit/apply', methods=['POST'])
+@login_required
+@edit_required
+def bulk_edit_apply():
+    ids = [int(x) for x in request.form.get('ids', '').split(',') if x.strip().isdigit()]
+    if not ids:
+        flash('没有待修改的记录。', 'warning')
+        return redirect(url_for('records.list_view'))
+
+    fid = request.form.get('field_id', type=int)
+    field = db.session.get(Field, fid) if fid else None
+    if not field:
+        flash('请选择要修改的字段。', 'danger')
+        return redirect(url_for('records.list_view'))
+
+    action = request.form.get('action', 'set')   # set / clear
+    if action == 'clear':
+        if field.required:
+            flash(f'「{field.label}」是必填字段，不能批量清空。', 'danger')
+            return redirect(url_for('records.list_view'))
+        new_display, triple = '（清空）', (None, None, None)
+    else:
+        if field.type == 'boolean':
+            # 未勾选表示“否”，这是有效值，不能当成空值
+            raw = '1' if request.form.get('value') in ('1', 'on', '是') else '0'
+        elif field.type == 'multiselect':
+            raw = ';'.join(request.form.getlist('value'))
+        else:
+            raw = (request.form.get('value') or '').strip()
+        if not raw:
+            # 关键：值为空时直接拒绝，绝不能静默清空已有数据
+            flash(f'没有收到「{field.label}」的新值，未做任何修改。'
+                  f'请填写新值后重试；若确实要清空该字段，请选择「清空该字段的值」。', 'danger')
+            return redirect(url_for('records.list_view'))
+        triple, err = parse_value(field, raw)
+        if err:
+            flash(err, 'danger')
+            return redirect(url_for('records.list_view'))
+        if triple[0] in (None, ''):
+            flash(f'「{field.label}」的新值为空，未做任何修改。'
+                  f'若确实要清空该字段，请选择「清空该字段的值」。', 'danger')
+            return redirect(url_for('records.list_view'))
+        # 用与列表一致的显示格式，便于比较和写日志（布尔显示“是/否”而不是 1/0）
+        new_display = value_to_display(field, _TmpValue(triple))
+
+    # 唯一字段：检查会不会造成重复
+    if field.is_unique and action != 'clear' and triple[0]:
+        exist = PatientValue.query.filter(PatientValue.field_id == field.id,
+                                          PatientValue.value_text == triple[0],
+                                          ~PatientValue.patient_id.in_(ids)).first()
+        if exist:
+            flash(f'「{field.label}」的值「{triple[0]}」已被记录 #{exist.patient_id} 占用，无法批量设置。', 'danger')
+            return redirect(url_for('records.list_view'))
+        # 同一批内也不能重复
+        dup = PatientValue.query.filter(PatientValue.field_id == field.id,
+                                        PatientValue.value_text == triple[0],
+                                        PatientValue.patient_id.in_(ids)).all()
+        if len(dup) > 1:
+            flash(f'勾选的记录中有 {len(dup)} 条「{field.label}」已经是「{triple[0]}」，会产生重复，已取消。', 'danger')
+            return redirect(url_for('records.list_view'))
+
+    changed = 0
+    samples = []
+    for pid in ids:
+        pv = PatientValue.query.filter_by(patient_id=pid, field_id=field.id).first()
+        old = value_to_display(field, pv) if pv else ''
+        if old == (new_display if action != 'clear' else ''):
+            continue
+        if action == 'clear':
+            if pv:
+                db.session.delete(pv)
+        else:
+            if pv:
+                pv.value_text, pv.value_number, pv.value_date = triple
+            else:
+                db.session.add(PatientValue(patient_id=pid, field_id=field.id,
+                                            value_text=triple[0], value_number=triple[1],
+                                            value_date=triple[2]))
+        p = db.session.get(Patient, pid)
+        if p:
+            p.updated_by_id = current_user.id
+            p.updated_at = datetime.now()
+        changed += 1
+        if len(samples) < 50:
+            samples.append(f'#{pid}: {old or "空"} → {new_display}')
+
+    log_action(current_user, 'bulk_update', 'patient', '',
+               f'字段「{field.label}」批量修改为「{new_display}」，选中 {len(ids)} 条，'
+               f'实际变更 {changed} 条；样例：' + '；'.join(samples))
+    db.session.commit()
+    verb = '已批量清空' if action == 'clear' else '已批量修改'
+    tail = '（原本就为空的已跳过）' if action == 'clear' else '（值未变化的已跳过）'
+    flash(f'{verb}「{field.label}」：选中 {len(ids)} 条，实际变更 {changed} 条{tail}。', 'success')
     return redirect(url_for('records.list_view'))
 
 
@@ -418,6 +627,13 @@ def import_run():
 
 
 # ---------------- 辅助 ----------------
+
+class _TmpValue:
+    """把 (text, number, date) 三元组包装成类 PatientValue 对象，用于统一渲染显示文本"""
+
+    def __init__(self, triple):
+        self.value_text, self.value_number, self.value_date = triple
+
 
 def _parse_form(fields, form, editing_patient=None):
     """返回 ({'values': {fid: triple}, 'raw': {fid: 文本}}, errors)"""

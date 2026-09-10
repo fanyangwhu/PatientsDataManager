@@ -40,3 +40,34 @@ document.addEventListener('click', function(e){
   var box = document.getElementById('expbox');
   if (box && !e.target.closest('.btn-row')) box.style.display = 'none';
 });
+
+// 复制文本到剪贴板（兼容 http 内网环境：navigator.clipboard 在非 HTTPS 下不可用）
+function copyText(text, btn){
+  var done = function(){
+    var old = btn.textContent;
+    btn.textContent = '已复制';
+    btn.classList.add('btn-copied');
+    setTimeout(function(){ btn.textContent = old; btn.classList.remove('btn-copied'); }, 1500);
+  };
+  if (navigator.clipboard && window.isSecureContext){
+    navigator.clipboard.writeText(text).then(done, function(){ fallbackCopy(text, done); });
+  } else {
+    fallbackCopy(text, done);
+  }
+}
+
+function fallbackCopy(text, done){
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); done(); } catch(e){ window.prompt('请手动复制下面的地址：', text); }
+  document.body.removeChild(ta);
+}
+
+// 刷新局域网地址（强制服务端重新探测）
+function refreshLan(){
+  location.href = location.pathname + '?lan_refresh=' + Date.now();
+}

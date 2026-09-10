@@ -1,5 +1,4 @@
 {% extends 'base.html' %}
-{% import '_macros.html' as m %}
 {% block title %}患者列表{% endblock %}
 {% block content %}
 
@@ -8,6 +7,7 @@
     <h2>患者列表（共 {{ pagination.total }} 条）</h2>
     <div class="btn-row">
       <a class="btn btn-primary" href="{{ url_for('records.create') }}">+ 新建</a>
+      <a class="btn" href="{{ url_for('stats.index') }}">统计看板</a>
       <a class="btn" href="{{ url_for('records.import_view') }}">Excel 导入</a>
       <a class="btn" href="{{ url_for('records.template') }}">下载导入模板</a>
       <div style="display:inline-block;position:relative">
@@ -63,45 +63,86 @@
     <button class="btn" type="button" onclick="toggleExtra(this)">更多筛选</button>
   </form>
 
-  <div class="table-wrap">
-  <table class="grid">
-    <thead>
-      <tr>
-        <th class="nowrap">#</th>
-        {% for f in list_fields %}
-          {% set a = request.args.to_dict() %}
-          {% set _ = a.update({'sort': f.id, 'dir': ('desc' if sort_fid|string == f.id|string and not desc else 'asc')}) %}
-          <th class="nowrap">
-            <a href="{{ url_for('records.list_view', **a) }}">{{ f.label }}</a>
-            {% if sort_fid|string == f.id|string %}<span>{{ '↓' if desc else '↑' }}</span>{% endif %}
+  <form method="post" id="bulkForm">
+    <input type="hidden" name="ids" id="idsInput" value="">
+    <input type="hidden" name="mode" id="modeInput" value="selected">
+    <input type="hidden" name="qs" id="qsInput" value="{{ request.query_string.decode('utf-8') }}">
+
+    <div class="bulkbar" id="bulkbar">
+      <div class="bulk-count">
+        已选 <strong id="selCount">0</strong> 条
+        <span class="muted small" id="selHint">（勾选左侧复选框；翻页后选择会保留）</span>
+      </div>
+      <div class="btn-row">
+        {% if current_user.can_edit() %}
+        <button class="btn btn-sm" type="submit" formaction="{{ url_for('records.bulk_edit_form') }}"
+                onclick="return requireSelection()">批量修改</button>
+        <button class="btn btn-sm btn-danger" type="submit" formaction="{{ url_for('records.bulk_delete_confirm') }}"
+                onclick="return requireSelection()">批量删除</button>
+        {% endif %}
+        <button class="btn btn-sm" type="button" onclick="selectAllFiltered()">
+          选中全部 {{ pagination.total }} 条筛选结果
+        </button>
+        <button class="btn btn-sm" type="button" onclick="clearSelection()">清空选择</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+    <table class="grid">
+      <thead>
+        <tr>
+          <th class="nowrap" style="width:34px">
+            <input type="checkbox" id="checkAll" onchange="toggleAll(this)" title="全选本页">
           </th>
-        {% endfor %}
-        <th class="nowrap">更新</th>
-        <th class="nowrap">操作</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for r in rows %}
-      <tr>
-        <td class="idcol">{{ r.id }}</td>
-        <td class="nowrap"><a class="patient-title" href="{{ url_for('records.detail', pid=r.id) }}">{{ r.title }}</a></td>
-        {% for c in r.cells %}<td>{{ c if c else '—' }}</td>{% endfor %}
-        <td class="nowrap muted small">{{ r.updated }}</td>
-        <td class="nowrap">
-          <a class="btn btn-sm" href="{{ url_for('records.detail', pid=r.id) }}">查看</a>
-          {% if current_user.can_edit() %}
-          <a class="btn btn-sm" href="{{ url_for('records.edit', pid=r.id) }}">编辑</a>
-          {% endif %}
-        </td>
-      </tr>
-    {% else %}
-      <tr><td colspan="{{ list_fields|length + 3 }}" class="empty">
-        没有符合条件的记录。调整筛选条件，或<a href="{{ url_for('records.create') }}">新建一条</a>。
-      </td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  </div>
+          <th class="nowrap">#</th>
+          {# 主标识列（如姓名）：数据行第一格就是它，表头必须有对应列，否则整行错位 #}
+          <th class="nowrap">
+            {% if primary_id %}
+              {% set a = request.args.to_dict() %}
+              {% set _ = a.update({'sort': primary_id, 'dir': ('desc' if sort_fid|string == primary_id|string and not desc else 'asc')}) %}
+              <a href="{{ url_for('records.list_view', **a) }}">{{ primary_label }}</a>
+              {% if sort_fid|string == primary_id|string %}<span>{{ '↓' if desc else '↑' }}</span>{% endif %}
+            {% else %}
+              {{ primary_label }}
+            {% endif %}
+          </th>
+          {% for f in list_fields %}
+            {% set a = request.args.to_dict() %}
+            {% set _ = a.update({'sort': f.id, 'dir': ('desc' if sort_fid|string == f.id|string and not desc else 'asc')}) %}
+            <th class="nowrap">
+              <a href="{{ url_for('records.list_view', **a) }}">{{ f.label }}</a>
+              {% if sort_fid|string == f.id|string %}<span>{{ '↓' if desc else '↑' }}</span>{% endif %}
+            </th>
+          {% endfor %}
+          <th class="nowrap">更新</th>
+          <th class="nowrap">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+        <tr class="{% if r.id in [] %}{% endif %}">
+          <td><input type="checkbox" class="row-check" value="{{ r.id }}"
+                     onchange="syncSelection()"></td>
+          <td class="idcol">{{ r.id }}</td>
+          <td class="nowrap"><a class="patient-title" href="{{ url_for('records.detail', pid=r.id) }}">{{ r.title }}</a></td>
+          {% for c in r.cells %}<td>{{ c if c else '—' }}</td>{% endfor %}
+          <td class="nowrap muted small">{{ r.updated }}</td>
+          <td class="nowrap">
+            <a class="btn btn-sm" href="{{ url_for('records.detail', pid=r.id) }}">查看</a>
+            {% if current_user.can_edit() %}
+            <a class="btn btn-sm" href="{{ url_for('records.edit', pid=r.id) }}">编辑</a>
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="{{ list_fields|length + 5 }}" class="empty">
+          没有符合条件的记录。调整筛选条件，或<a href="{{ url_for('records.create') }}">新建一条</a>。
+        </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </form>
 
   {% if pagination.pages > 1 %}
   <div class="pager">
@@ -133,4 +174,70 @@
   </div>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 跨页保留勾选：用 Set 维护，翻页后回填
+var selected = new Set();
+
+function syncSelection(){
+  document.querySelectorAll('.row-check').forEach(function(cb){
+    if (cb.checked) selected.add(cb.value); else selected.delete(cb.value);
+  });
+  refreshUI();
+}
+
+function toggleAll(master){
+  var on = master.checked;
+  document.querySelectorAll('.row-check').forEach(function(cb){
+    cb.checked = on;
+    if (on) selected.add(cb.value); else selected.delete(cb.value);
+  });
+  refreshUI();
+}
+
+function refreshUI(){
+  document.getElementById('idsInput').value = Array.from(selected).join(',');
+  document.getElementById('selCount').textContent = selected.size;
+  var hint = document.getElementById('selHint');
+  if (selected.size > 0){
+    hint.textContent = '（已跨页保留，可对这 ' + selected.size + ' 条批量操作）';
+  } else {
+    hint.textContent = '（勾选左侧复选框；翻页后选择会保留）';
+  }
+  var master = document.getElementById('checkAll');
+  var boxes = document.querySelectorAll('.row-check');
+  var allChecked = boxes.length > 0 && Array.from(boxes).every(function(cb){ return cb.checked; });
+  if (master) master.checked = allChecked;
+}
+
+function clearSelection(){
+  selected.clear();
+  document.querySelectorAll('.row-check').forEach(function(cb){ cb.checked = false; });
+  var master = document.getElementById('checkAll'); if (master) master.checked = false;
+  refreshUI();
+}
+
+function requireSelection(){
+  if (selected.size === 0){
+    alert('请先勾选至少一条记录。');
+    return false;
+  }
+  document.getElementById('idsInput').value = Array.from(selected).join(',');
+  document.getElementById('modeInput').value = 'selected';
+  return true;
+}
+
+function selectAllFiltered(){
+  if (!confirm('将对当前筛选条件下的全部 {{ pagination.total }} 条记录执行操作，确定继续？')) return;
+  document.getElementById('modeInput').value = 'all_filtered';
+  document.getElementById('idsInput').value = '';
+  var form = document.getElementById('bulkForm');
+  form.action = '{{ url_for("records.bulk_edit_form") }}';
+  form.submit();
+}
+
+refreshUI();
+</script>
 {% endblock %}

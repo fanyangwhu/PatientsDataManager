@@ -145,3 +145,43 @@ table.grid .idcol{color:var(--muted);font-size:12px}
 .modal{display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:100;align-items:center;justify-content:center}
 .modal.show{display:flex}
 .modal-box{background:#fff;border-radius:10px;padding:20px;max-width:520px;width:90%;max-height:80vh;overflow:auto}
+
+/* ---------- 批量操作栏 ---------- */
+.bulkbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+  margin-bottom:10px;padding:8px 12px;background:#f7f9fc;border:1px solid var(--border);border-radius:8px}
+.bulk-count{font-size:13px}
+.bulk-count strong{color:var(--primary);font-size:15px}
+table.grid td input[type=checkbox],
+table.grid th input[type=checkbox]{width:15px;height:15px;margin:0;cursor:pointer;vertical-align:middle}
+
+/* ---------- 统计看板 ---------- */
+.stat-card-head{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  flex-wrap:wrap;margin-bottom:12px}
+.stat-card-head h3{margin:0;font-size:15px}
+.stat-card-meta{display:flex;gap:4px;flex-wrap:wrap}
+.chart-row{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+.chart-box{flex:1 1 220px;min-width:200px}
+.chart-box svg{max-width:100%}
+
+ul.legend{list-style:none;margin:0;padding:0;font-size:13px}
+ul.legend li{display:flex;align-items:center;gap:8px;padding:3px 0;border-bottom:1px dashed #eef2f7}
+ul.legend li:last-child{border-bottom:none}
+ul.legend .dot{width:10px;height:10px;border-radius:3px;flex:none}
+ul.legend .lg-t{flex:1;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ul.legend .lg-v{color:#6b7280;font-variant-numeric:tabular-nums}
+
+table.mini-stats{width:100%;border-collapse:collapse;font-size:13px}
+table.mini-stats td{padding:6px 8px;border-bottom:1px solid #eef2f7}
+table.mini-stats td:first-child{color:var(--muted);width:45%}
+table.mini-stats td.v{font-weight:600;color:#111827;font-variant-numeric:tabular-nums}
+
+/* ---------- 共享访问 / 局域网地址 ---------- */
+.lan-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.lan-item{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:#f9fbff}
+.lan-item:hover{border-color:#c3daf7;background:#eff5fd}
+.lan-main{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
+.lan-url{font-family:Consolas,Monaco,"Courier New",monospace;font-size:15px;font-weight:600;
+  color:var(--primary);word-break:break-all}
+.lan-url:hover{text-decoration:underline}
+.btn-copied{background:#e9f7ef;border-color:#b7e4c9;color:#14663c}

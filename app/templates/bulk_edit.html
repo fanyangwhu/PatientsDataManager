@@ -1,0 +1,155 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}批量修改{% endblock %}
+{% block content %}
+<div class="card" style="max-width:760px">
+  <div class="card-head">
+    <h2>批量修改（共 {{ total }} 条记录）</h2>
+    <a class="btn" href="{{ url_for('records.list_view') }}">取消并返回</a>
+  </div>
+
+  <div class="flash flash-warning">
+    将对
+    {% if mode == 'all_filtered' %}
+      <strong>符合当前筛选条件的全部 {{ total }} 条</strong>
+    {% else %}
+      <strong>勾选的 {{ total }} 条</strong>
+    {% endif %}
+    记录统一设置某个字段的值。值本来就相同的记录会自动跳过，不计入变更数。
+    <br>所有变更会逐条写入审计日志。
+  </div>
+
+  <form method="post" action="{{ url_for('records.bulk_edit_apply') }}" id="beForm">
+    <input type="hidden" name="ids" value="{{ ids_str }}">
+    <input type="hidden" name="qs" value="{{ qs }}">
+
+    <div class="field" style="margin-bottom:14px">
+      <label>选择要修改的字段<span class="req">*</span></label>
+      <select name="field_id" id="fieldSel" required onchange="onFieldChange()">
+        <option value="">— 请选择 —</option>
+        {% for f in fields %}
+        <option value="{{ f.id }}" data-type="{{ f.type }}"
+                data-required="{{ '1' if f.required else '0' }}"
+                data-unique="{{ '1' if f.is_unique else '0' }}">{{ f.label_with_unit }}
+          （{{ {'text':'文本','number':'数字','date':'日期','select':'单选','multiselect':'多选','boolean':'是否'}.get(f.type, f.type) }}{% if f.is_unique %} · 唯一{% endif %}{% if f.required %} · 必填{% endif %}）</option>
+        {% endfor %}
+      </select>
+      <span class="hint">多行文本字段不提供批量赋值（通常每条内容都不同）；如需修改请逐条编辑。</span>
+    </div>
+
+    <div id="valueBox" style="display:none">
+      <div class="field" style="margin-bottom:14px">
+        <label>操作</label>
+        <div class="check-row">
+          <label><input type="radio" name="action" value="set" checked onchange="toggleValue()"> 设为下面的值</label>
+          <label><input type="radio" name="action" value="clear" onchange="toggleValue()"
+                        id="clearRadio"> 清空该字段的值</label>
+        </div>
+      </div>
+
+      <div class="field" id="inputBox" style="margin-bottom:14px">
+        <label>新值<span class="req">*</span></label>
+        {# 控件由服务端渲染（不再用 JS 注入字符串），未选中的字段用 disabled 阻止提交 #}
+        {% for f in fields %}
+        <div class="be-widget" id="w{{ f.id }}" style="display:none">
+          {{ m.widget(f, '', name='value', disabled=True, required=False) }}
+        </div>
+        {% endfor %}
+        <span class="hint" id="fieldHint"></span>
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:18px">
+      <button class="btn btn-primary" type="submit"
+              onclick="return beforeSubmit()">确认修改</button>
+      <a class="btn" href="{{ url_for('records.list_view') }}">取消</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 提示文案（纯文本，无转义风险）
+var HINTS = {
+{% for f in fields %}
+  '{{ f.id }}': '{% if f.type == 'date' %}格式 YYYY-MM-DD{% elif f.type == 'number' %}纯数字，如 58 或 36.5{% elif f.type == 'multiselect' %}可勾选多个{% elif f.type == 'select' %}从预设选项中选择{% elif f.type == 'boolean' %}勾选表示是{% else %}将统一写入这段文本{% endif %}{% if f.unit %}（单位：{{ f.unit }}）{% endif %}',
+{% endfor %}
+  '_': ''
+};
+
+function onFieldChange(){
+  var sel = document.getElementById('fieldSel');
+  var fid = sel.value;
+  var box = document.getElementById('valueBox');
+
+  // 先把所有控件的 input 禁用并隐藏（禁用的控件不会随表单提交）
+  document.querySelectorAll('.be-widget').forEach(function(d){
+    d.style.display = 'none';
+    d.querySelectorAll('input,select,textarea').forEach(function(el){ el.disabled = true; });
+  });
+
+  if (!fid){ box.style.display = 'none'; return; }
+  box.style.display = 'block';
+
+  var holder = document.getElementById('w' + fid);
+  if (holder){
+    holder.style.display = 'block';
+    holder.querySelectorAll('input,select,textarea').forEach(function(el){ el.disabled = false; });
+  }
+
+  document.getElementById('fieldHint').textContent = HINTS[fid] || '';
+
+  var opt = sel.options[sel.selectedIndex];
+  var clearRadio = document.getElementById('clearRadio');
+  if (clearRadio){
+    // 必填字段不允许清空
+    clearRadio.disabled = (opt.dataset.required === '1');
+    if (clearRadio.disabled && clearRadio.checked){
+      document.querySelector('input[name=action][value=set]').checked = true;
+    }
+  }
+  toggleValue();
+}
+
+function toggleValue(){
+  var act = document.querySelector('input[name=action]:checked');
+  var isSet = !(act && act.value === 'clear');
+  var box = document.getElementById('inputBox');
+  box.style.display = isSet ? 'block' : 'none';
+  // 清空模式下把输入控件禁用，避免误提交
+  document.querySelectorAll('.be-widget').forEach(function(d){
+    if (d.style.display !== 'none'){
+      d.querySelectorAll('input,select,textarea').forEach(function(el){ el.disabled = !isSet; });
+    }
+  });
+}
+
+function beforeSubmit(){
+  var sel = document.getElementById('fieldSel');
+  if (!sel.value){
+    alert('请先选择要修改的字段。');
+    sel.focus();
+    return false;
+  }
+  var act = document.querySelector('input[name=action]:checked');
+  if (act && act.value === 'set'){
+    var holder = document.getElementById('w' + sel.value);
+    if (!holder || holder.style.display === 'none'){
+      alert('新值输入框未就绪，请重新选择一次字段。');
+      return false;
+    }
+    var el = holder.querySelector('input,select,textarea');
+    var empty = !el || (el.type !== 'checkbox' && String(el.value).trim() === '');
+    if (empty){
+      alert('请填写新值。若确实要清空该字段，请选择「清空该字段的值」。');
+      if (el) el.focus();
+      return false;
+    }
+  }
+  return confirm('确定要批量修改这 {{ total }} 条记录吗？');
+}
+
+onFieldChange();
+</script>
+{% endblock %}

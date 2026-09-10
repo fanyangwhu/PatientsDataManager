@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}批量删除确认{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <h2>确认删除 {{ total }} 条记录</h2>
+    <a class="btn" href="{{ url_for('records.list_view') }}">取消并返回</a>
+  </div>
+
+  <div class="flash flash-danger">
+    <strong>此操作不可恢复。</strong>
+    删除后数据无法在界面上找回，但系统会把删除内容存入审计日志（前 200 条完整快照），
+    管理员可在「审计日志」中查看。
+    {% if mode == 'all_filtered' %}
+    <br>当前范围：<strong>符合筛选条件的全部记录</strong>。
+    {% else %}
+    <br>当前范围：<strong>手动勾选的记录</strong>。
+    {% endif %}
+  </div>
+
+  <div class="table-wrap" style="margin-top:14px">
+  <table class="grid">
+    <thead><tr><th class="nowrap">#</th><th>记录</th><th class="nowrap">最后更新</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td class="idcol">{{ r.id }}</td>
+        <td>{{ r.title }}</td>
+        <td class="nowrap muted small">{{ r.updated }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if total > 20 %}
+  <p class="small muted">共 {{ total }} 条，上方仅列出全部明细。</p>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('records.bulk_delete_apply') }}"
+        onsubmit="return confirm('最后确认：真的要删除这 {{ total }} 条记录吗？')">
+    <input type="hidden" name="ids" value="{{ ids_str }}">
+    <input type="hidden" name="confirm" value="yes">
+    <div class="btn-row" style="margin-top:18px">
+      <button class="btn btn-solid-danger" type="submit">确认删除这 {{ total }} 条</button>
+      <a class="btn" href="{{ url_for('records.list_view') }}">取消</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

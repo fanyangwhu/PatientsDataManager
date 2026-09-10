@@ -20,6 +20,7 @@
   <nav class="nav">
     <a href="{{ url_for('index') }}" class="{{ 'active' if (request.endpoint or '') == 'index' }}">数据总览</a>
     <a href="{{ url_for('records.list_view') }}" class="{{ 'active' if (request.endpoint or '').startswith('records.list') }}">患者列表</a>
+    <a href="{{ url_for('stats.index') }}" class="{{ 'active' if (request.endpoint or '').startswith('stats.') }}">统计看板</a>
     <a href="{{ url_for('records.import_view') }}" class="{{ 'active' if (request.endpoint or '').startswith('records.import') }}">Excel 导入</a>
     {% if current_user.is_admin() %}
     <a href="{{ url_for('fields.index') }}" class="{{ 'active' if (request.endpoint or '').startswith('fields.') }}">字段管理</a>
